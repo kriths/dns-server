@@ -1,4 +1,5 @@
-use bytes::{BufMut, Bytes, BytesMut};
+use anyhow::bail;
+use bytes::{BufMut, BytesMut};
 
 pub const REQUEST_HEADER_SIZE: usize = 12;
 
@@ -134,11 +135,13 @@ impl DNSHeader {
         output.put_u16(self.count_additional);
     }
 
-    pub(crate) fn from_bytes(bytes: Bytes) -> Self {
-        assert_eq!(bytes.len(), 12);
+    pub(crate) fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
+        if bytes.len() != REQUEST_HEADER_SIZE {
+            bail!("Request header has invalid length");
+        }
 
         let flags = u16::from_be_bytes([bytes[2], bytes[3]]);
-        Self {
+        Ok(Self {
             identification: u16::from_be_bytes([bytes[0], bytes[1]]),
             msg_type: HeaderFlagQR::from_flags(flags),
             opcode: HeaderFlagOpCode::from_flags(flags),
@@ -151,31 +154,36 @@ impl DNSHeader {
             count_answers: u16::from_be_bytes([bytes[6], bytes[7]]),
             count_authorities: u16::from_be_bytes([bytes[8], bytes[9]]),
             count_additional: u16::from_be_bytes([bytes[10], bytes[11]]),
-        }
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use bytes::Bytes;
-
     use super::*;
 
     #[test]
+    fn header_from_bytes_reject_invalid_length() {
+        let bytes = &[0u8];
+        let res_header = DNSHeader::from_bytes(bytes);
+        assert!(res_header.is_err());
+    }
+
+    #[test]
     fn header_from_bytes_parses_identification() {
-        let bytes: Bytes = Bytes::from(vec![
+        let bytes = &[
             0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        ]);
-        let header = DNSHeader::from_bytes(bytes);
+        ];
+        let header = DNSHeader::from_bytes(bytes).unwrap();
         assert_eq!(0x1234, header.identification);
     }
 
     #[test]
     fn header_from_bytes_parses_default_request_flags() {
-        let bytes: Bytes = Bytes::from(vec![
+        let bytes = &[
             0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        ]);
-        let header = DNSHeader::from_bytes(bytes);
+        ];
+        let header = DNSHeader::from_bytes(bytes).unwrap();
         assert_eq!(HeaderFlagQR::Query, header.msg_type);
         assert_eq!(HeaderFlagOpCode::Query, header.opcode);
         assert_eq!(false, header.authoritative);
@@ -187,37 +195,37 @@ mod tests {
 
     #[test]
     fn header_from_bytes_parses_count_questions() {
-        let bytes: Bytes = Bytes::from(vec![
+        let bytes = &[
             0x12, 0x34, 0x01, 0x00, 0x11, 0x11, 0x22, 0x22, 0x33, 0x33, 0x44, 0x44,
-        ]);
-        let header = DNSHeader::from_bytes(bytes);
+        ];
+        let header = DNSHeader::from_bytes(bytes).unwrap();
         assert_eq!(0x1111, header.count_questions);
     }
 
     #[test]
     fn header_from_bytes_parses_count_answers() {
-        let bytes: Bytes = Bytes::from(vec![
+        let bytes = &[
             0x12, 0x34, 0x01, 0x00, 0x11, 0x11, 0x22, 0x22, 0x33, 0x33, 0x44, 0x44,
-        ]);
-        let header = DNSHeader::from_bytes(bytes);
+        ];
+        let header = DNSHeader::from_bytes(bytes).unwrap();
         assert_eq!(0x2222, header.count_answers);
     }
 
     #[test]
     fn header_from_bytes_parses_count_authorities() {
-        let bytes: Bytes = Bytes::from(vec![
+        let bytes = &[
             0x12, 0x34, 0x01, 0x00, 0x11, 0x11, 0x22, 0x22, 0x33, 0x33, 0x44, 0x44,
-        ]);
-        let header = DNSHeader::from_bytes(bytes);
+        ];
+        let header = DNSHeader::from_bytes(bytes).unwrap();
         assert_eq!(0x3333, header.count_authorities);
     }
 
     #[test]
     fn header_from_bytes_parses_count_additional() {
-        let bytes: Bytes = Bytes::from(vec![
+        let bytes = &[
             0x12, 0x34, 0x01, 0x00, 0x11, 0x11, 0x22, 0x22, 0x33, 0x33, 0x44, 0x44,
-        ]);
-        let header = DNSHeader::from_bytes(bytes);
+        ];
+        let header = DNSHeader::from_bytes(bytes).unwrap();
         assert_eq!(0x4444, header.count_additional);
     }
 }
