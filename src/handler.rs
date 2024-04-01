@@ -1,7 +1,9 @@
 use bytes::Bytes;
 use log::trace;
 
-use crate::data::*;
+use crate::data::header::*;
+use crate::data::request::DNSRequest;
+use crate::data::response::DNSResponse;
 
 pub async fn parse_and_handle_request(request_bytes: Bytes) -> anyhow::Result<DNSResponse> {
     let request = DNSRequest::from_bytes(request_bytes)?;

@@ -1,8 +1,6 @@
-use anyhow::bail;
 use bytes::{BufMut, Bytes, BytesMut};
-use log::trace;
 
-const REQUEST_HEADER_SIZE: usize = 12;
+pub const REQUEST_HEADER_SIZE: usize = 12;
 
 #[derive(Debug, PartialEq)]
 pub enum HeaderFlagQR {
@@ -111,7 +109,7 @@ pub struct DNSHeader {
 }
 
 impl DNSHeader {
-    fn write_as_bytes(&self, output: &mut BytesMut) {
+    pub(crate) fn write_as_bytes(&self, output: &mut BytesMut) {
         assert!(output.is_empty()); // Header must be the first thing to write
         let mut flags =
             self.msg_type.to_mask() | self.opcode.to_mask() | self.response_code.to_mask();
@@ -136,11 +134,10 @@ impl DNSHeader {
         output.put_u16(self.count_additional);
     }
 
-    fn from_bytes(bytes: Bytes) -> Self {
+    pub(crate) fn from_bytes(bytes: Bytes) -> Self {
         assert_eq!(bytes.len(), 12);
 
         let flags = u16::from_be_bytes([bytes[2], bytes[3]]);
-        trace!("{}", flags);
         Self {
             identification: u16::from_be_bytes([bytes[0], bytes[1]]),
             msg_type: HeaderFlagQR::from_flags(flags),
@@ -158,39 +155,6 @@ impl DNSHeader {
     }
 }
 
-#[derive(Debug)]
-pub struct DNSRequest {
-    pub header: DNSHeader,
-}
-
-impl DNSRequest {
-    pub(crate) fn from_bytes(mut request_bytes: Bytes) -> anyhow::Result<Self> {
-        if request_bytes.len() < REQUEST_HEADER_SIZE {
-            bail!("Invalid request header size")
-        }
-
-        let header_bytes = request_bytes.split_to(REQUEST_HEADER_SIZE);
-        let header = DNSHeader::from_bytes(header_bytes);
-        // todo: parse request body
-        Ok(Self { header })
-    }
-}
-
-#[derive(Debug)]
-pub struct DNSResponse {
-    pub header: DNSHeader,
-}
-
-impl DNSResponse {
-    pub fn to_bytes(self) -> anyhow::Result<Bytes> {
-        let expected_size = REQUEST_HEADER_SIZE; // todo: body?
-        let mut bytes = BytesMut::with_capacity(expected_size);
-        self.header.write_as_bytes(&mut bytes);
-        // todo: write body
-        Ok(bytes.freeze())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
@@ -198,13 +162,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn request_from_bytes_fails_when_header_is_too_short() {
-        let bytes: Bytes = Bytes::from(vec![0x00]);
-        assert!(DNSRequest::from_bytes(bytes).is_err());
-    }
-
-    #[test]
-    fn request_header_from_bytes_parses_identification() {
+    fn header_from_bytes_parses_identification() {
         let bytes: Bytes = Bytes::from(vec![
             0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ]);
@@ -213,7 +171,7 @@ mod tests {
     }
 
     #[test]
-    fn request_header_from_bytes_parses_default_request_flags() {
+    fn header_from_bytes_parses_default_request_flags() {
         let bytes: Bytes = Bytes::from(vec![
             0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ]);
@@ -228,7 +186,7 @@ mod tests {
     }
 
     #[test]
-    fn request_header_from_bytes_parses_count_questions() {
+    fn header_from_bytes_parses_count_questions() {
         let bytes: Bytes = Bytes::from(vec![
             0x12, 0x34, 0x01, 0x00, 0x11, 0x11, 0x22, 0x22, 0x33, 0x33, 0x44, 0x44,
         ]);
@@ -237,7 +195,7 @@ mod tests {
     }
 
     #[test]
-    fn request_header_from_bytes_parses_count_answers() {
+    fn header_from_bytes_parses_count_answers() {
         let bytes: Bytes = Bytes::from(vec![
             0x12, 0x34, 0x01, 0x00, 0x11, 0x11, 0x22, 0x22, 0x33, 0x33, 0x44, 0x44,
         ]);
@@ -246,7 +204,7 @@ mod tests {
     }
 
     #[test]
-    fn request_header_from_bytes_parses_count_authorities() {
+    fn header_from_bytes_parses_count_authorities() {
         let bytes: Bytes = Bytes::from(vec![
             0x12, 0x34, 0x01, 0x00, 0x11, 0x11, 0x22, 0x22, 0x33, 0x33, 0x44, 0x44,
         ]);
@@ -255,7 +213,7 @@ mod tests {
     }
 
     #[test]
-    fn request_header_from_bytes_parses_count_additional() {
+    fn header_from_bytes_parses_count_additional() {
         let bytes: Bytes = Bytes::from(vec![
             0x12, 0x34, 0x01, 0x00, 0x11, 0x11, 0x22, 0x22, 0x33, 0x33, 0x44, 0x44,
         ]);
