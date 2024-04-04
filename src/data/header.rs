@@ -1,7 +1,7 @@
 use anyhow::bail;
 use bytes::{BufMut, BytesMut};
 
-pub const REQUEST_HEADER_SIZE: usize = 12;
+use crate::data::sizes::REQUEST_HEADER_SIZE;
 
 #[derive(Debug, PartialEq)]
 pub enum HeaderFlagQR {

@@ -2,8 +2,9 @@ use anyhow::bail;
 use bytes::Bytes;
 
 use crate::data::domain_name::DomainName;
-use crate::data::header::{DNSHeader, REQUEST_HEADER_SIZE};
+use crate::data::header::DNSHeader;
 use crate::data::record_type::RecordType;
+use crate::data::sizes::REQUEST_HEADER_SIZE;
 
 /// DNSQuestion represents a question to the server requesting a record
 /// of a specific type for a given domain name. It is encoded in the following
@@ -52,10 +53,20 @@ impl DNSQuestion {
 pub struct DNSRequest {
     pub header: DNSHeader,
     pub questions: Vec<DNSQuestion>,
+    raw_bytes: Option<Bytes>,
 }
 
 impl DNSRequest {
-    pub(crate) fn from_bytes(request_bytes: &Bytes) -> anyhow::Result<Self> {
+    pub(crate) fn to_bytes(&self) -> anyhow::Result<&Bytes> {
+        match &self.raw_bytes {
+            Some(bytes) => Ok(bytes),
+            None => {
+                bail!("Serialization not implemented") // todo
+            }
+        }
+    }
+
+    pub(crate) fn from_bytes(request_bytes: Bytes) -> anyhow::Result<Self> {
         if request_bytes.len() < REQUEST_HEADER_SIZE {
             bail!("Invalid request header size")
         }
@@ -64,6 +75,7 @@ impl DNSRequest {
         Ok(Self {
             header: DNSHeader::from_bytes(header_bytes)?,
             questions: DNSQuestion::parse(question_bytes)?,
+            raw_bytes: Some(request_bytes),
         })
     }
 }
@@ -79,7 +91,7 @@ mod tests {
     #[test]
     fn request_from_bytes_fails_when_header_is_too_short() {
         let bytes = Bytes::from(vec![0x00]);
-        assert!(DNSRequest::from_bytes(&bytes).is_err());
+        assert!(DNSRequest::from_bytes(bytes).is_err());
     }
 
     #[test]
@@ -87,7 +99,7 @@ mod tests {
         let bytes = Bytes::from(vec![
             0x12, 0x34, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ]);
-        let request = DNSRequest::from_bytes(&bytes).unwrap();
+        let request = DNSRequest::from_bytes(bytes).unwrap();
         assert_eq!(HeaderFlagQR::Query, request.header.msg_type);
         assert!(request.questions.is_empty());
     }
@@ -98,7 +110,7 @@ mod tests {
             0x12, 0x34, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x7a,
             0x7a, 0x7a, 0x02, 0x41, 0x41, 0x00, 0x00, 0x01, 0x00, 0x01,
         ]);
-        let request = DNSRequest::from_bytes(&bytes).unwrap();
+        let request = DNSRequest::from_bytes(bytes).unwrap();
         assert_eq!(1, request.questions.len());
     }
 }

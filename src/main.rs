@@ -6,6 +6,7 @@ use crate::server::DNSServer;
 mod config;
 mod data;
 mod handler;
+mod resolver;
 mod server;
 
 #[tokio::main]
